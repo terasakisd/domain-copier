@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ドメインリスト コピーツール</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f5f5f5;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: #333;
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            opacity: 0.9;
+            font-size: 14px;
+        }
+        
+        .content {
+            padding: 30px;
+        }
+        
+        .upload-area {
+            border: 3px dashed #999;
+            border-radius: 12px;
+            padding: 40px;
+            text-align: center;
+            background: #fafafa;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-bottom: 30px;
+        }
+        
+        .upload-area:hover {
+            border-color: #666;
+            background: #f0f0f0;
+        }
+        
+        .upload-area.dragover {
+            background: #e8e8e8;
+            border-color: #333;
+        }
+        
+        .upload-icon {
+            color: #666;
+            margin-bottom: 15px;
+        }
+        
+        input[type="file"] {
+            display: none;
+        }
+        
+        .info-box {
+            background: #fafafa;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            display: none;
+            border: 1px solid #e0e0e0;
+        }
+        
+        .info-box.show {
+            display: block;
+        }
+        
+        .info-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        
+        .info-item:last-child {
+            border-bottom: none;
+        }
+        
+        .info-label {
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .batch-controls {
+            display: none;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .batch-controls.show {
+            display: flex;
+        }
+        
+        .batch-nav {
+            display: flex;
+            gap: 10px;
+            flex: 1;
+        }
+        
+        button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            flex: 1;
+        }
+        
+        .btn-primary {
+            background: #2196F3;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #1976D2;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(33, 150, 243, 0.3);
+        }
+        
+        .btn-secondary {
+            background: #f0f0f0;
+            color: #333;
+        }
+        
+        .btn-secondary:hover {
+            background: #e0e0e0;
+        }
+        
+        .btn-secondary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .domain-preview {
+            background: #fafafa;
+            border: 1px solid #e0e0e0;
+            border-radius: 10px;
+            padding: 20px;
+            max-height: 400px;
+            overflow-y: auto;
+            margin-bottom: 20px;
+            display: none;
+        }
+        
+        .domain-preview.show {
+            display: block;
+        }
+        
+        .domain-preview h3 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 16px;
+        }
+        
+        .domain-list {
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.6;
+            color: #333;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+        
+        .copy-notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #4caf50;
+            color: white;
+            padding: 15px 25px;
+            border-radius: 8px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+            display: none;
+            animation: slideIn 0.3s ease;
+        }
+        
+        .copy-notification.show {
+            display: block;
+        }
+        
+        @keyframes slideIn {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        
+        .batch-indicator {
+            text-align: center;
+            padding: 10px;
+            background: #333;
+            color: white;
+            border-radius: 8px;
+            font-weight: 600;
+            margin-bottom: 15px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>ドメインリスト コピーツール</h1>
+            <p>Excelファイルから Domain 列を抽出し、200行ずつコピーできます</p>
+        </div>
+        
+        <div class="content">
+            <div class="upload-area" id="uploadArea">
+                <div class="upload-icon">
+                    <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                        <polyline points="14 2 14 8 20 8"></polyline>
+                        <line x1="12" y1="18" x2="12" y2="12"></line>
+                        <line x1="9" y1="15" x2="15" y2="15"></line>
+                    </svg>
+                </div>
+                <h3>Excelファイルをドラッグ&ドロップ</h3>
+                <p>または クリックしてファイルを選択</p>
+                <input type="file" id="fileInput" accept=".xlsx,.xls">
+            </div>
+            
+            <div class="info-box" id="infoBox">
+                <div class="info-item">
+                    <span class="info-label">ファイル名:</span>
+                    <span id="fileName">-</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">総ドメイン数:</span>
+                    <span id="totalDomains">-</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">総ページ数:</span>
+                    <span id="totalBatches">-</span>
+                </div>
+            </div>
+            
+            <div class="batch-controls" id="batchControls">
+                <div class="batch-nav">
+                    <button class="btn-secondary" id="prevBtn" onclick="previousBatch()">← 前のページ</button>
+                    <button class="btn-secondary" id="nextBtn" onclick="nextBatch()">次のページ →</button>
+                </div>
+                <button class="btn-primary" onclick="copyCurrentBatch()">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; margin-right: 6px;">
+                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                    </svg>
+                    現在のページをコピー
+                </button>
+            </div>
+            
+            <div class="domain-preview" id="domainPreview">
+                <div class="batch-indicator" id="batchIndicator"></div>
+                <div class="domain-list" id="domainList"></div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="copy-notification" id="copyNotification">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; margin-right: 8px;">
+            <polyline points="20 6 9 17 4 12"></polyline>
+        </svg>
+        コピーしました！
+    </div>
+
+    <script>
+        let allDomains = [];
+        let currentBatch = 0;
+        const BATCH_SIZE = 200;
+        
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const infoBox = document.getElementById('infoBox');
+        const batchControls = document.getElementById('batchControls');
+        const domainPreview = document.getElementById('domainPreview');
+        
+        // Upload area click
+        uploadArea.addEventListener('click', () => fileInput.click());
+        
+        // Drag and drop
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+        
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+        
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFile(files[0]);
+            }
+        });
+        
+        // File input change
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFile(e.target.files[0]);
+            }
+        });
+        
+        function handleFile(file) {
+            const reader = new FileReader();
+            
+            reader.onload = (e) => {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    
+                    // Get first sheet
+                    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                    const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
+                    
+                    // Find Domain column
+                    const headers = jsonData[0];
+                    let domainColIndex = -1;
+                    
+                    for (let i = 0; i < headers.length; i++) {
+                        if (headers[i] && headers[i].toString().toLowerCase().includes('domain')) {
+                            domainColIndex = i;
+                            break;
+                        }
+                    }
+                    
+                    if (domainColIndex === -1) {
+                        alert('Domain列が見つかりませんでした。\n利用可能な列: ' + headers.join(', '));
+                        return;
+                    }
+                    
+                    // Extract domains (skip header row)
+                    allDomains = [];
+                    for (let i = 1; i < jsonData.length; i++) {
+                        const domain = jsonData[i][domainColIndex];
+                        if (domain && domain.toString().trim() !== '') {
+                            allDomains.push(domain.toString().trim());
+                        }
+                    }
+                    
+                    if (allDomains.length === 0) {
+                        alert('ドメインが見つかりませんでした。');
+                        return;
+                    }
+                    
+                    // Update UI
+                    document.getElementById('fileName').textContent = file.name;
+                    document.getElementById('totalDomains').textContent = allDomains.length.toLocaleString();
+                    document.getElementById('totalBatches').textContent = Math.ceil(allDomains.length / BATCH_SIZE);
+                    
+                    infoBox.classList.add('show');
+                    batchControls.classList.add('show');
+                    domainPreview.classList.add('show');
+                    
+                    currentBatch = 0;
+                    displayBatch();
+                    
+                } catch (error) {
+                    alert('ファイルの読み込みに失敗しました: ' + error.message);
+                }
+            };
+            
+            reader.readAsArrayBuffer(file);
+        }
+        
+        function displayBatch() {
+            const start = currentBatch * BATCH_SIZE;
+            const end = Math.min(start + BATCH_SIZE, allDomains.length);
+            const batchDomains = allDomains.slice(start, end);
+            
+            document.getElementById('domainList').textContent = batchDomains.join('\n');
+            document.getElementById('batchIndicator').textContent = 
+                `ページ ${currentBatch + 1} / ${Math.ceil(allDomains.length / BATCH_SIZE)} (${start + 1} - ${end} 件目)`;
+            
+            // Update button states
+            document.getElementById('prevBtn').disabled = currentBatch === 0;
+            document.getElementById('nextBtn').disabled = end >= allDomains.length;
+        }
+        
+        function previousBatch() {
+            if (currentBatch > 0) {
+                currentBatch--;
+                displayBatch();
+            }
+        }
+        
+        function nextBatch() {
+            if ((currentBatch + 1) * BATCH_SIZE < allDomains.length) {
+                currentBatch++;
+                displayBatch();
+            }
+        }
+        
+        function copyCurrentBatch() {
+            const start = currentBatch * BATCH_SIZE;
+            const end = Math.min(start + BATCH_SIZE, allDomains.length);
+            const batchDomains = allDomains.slice(start, end);
+            const text = batchDomains.join('\n');
+            
+            navigator.clipboard.writeText(text).then(() => {
+                showCopyNotification();
+                // コピー後、次のページに移動
+                if ((currentBatch + 1) * BATCH_SIZE < allDomains.length) {
+                    setTimeout(() => {
+                        nextBatch();
+                    }, 300);
+                }
+            }).catch(err => {
+                // Fallback for older browsers
+                const textarea = document.createElement('textarea');
+                textarea.value = text;
+                textarea.style.position = 'fixed';
+                textarea.style.opacity = '0';
+                document.body.appendChild(textarea);
+                textarea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textarea);
+                showCopyNotification();
+                // コピー後、次のページに移動
+                if ((currentBatch + 1) * BATCH_SIZE < allDomains.length) {
+                    setTimeout(() => {
+                        nextBatch();
+                    }, 300);
+                }
+            });
+        }
+        
+        function showCopyNotification() {
+            const notification = document.getElementById('copyNotification');
+            notification.classList.add('show');
+            setTimeout(() => {
+                notification.classList.remove('show');
+            }, 2000);
+        }
+        
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (allDomains.length === 0) return;
+            
+            if (e.key === 'ArrowLeft' && !document.getElementById('prevBtn').disabled) {
+                previousBatch();
+            } else if (e.key === 'ArrowRight' && !document.getElementById('nextBtn').disabled) {
+                nextBatch();
+            } else if (e.ctrlKey && e.key === 'c') {
+                e.preventDefault();
+                copyCurrentBatch();
+            }
+        });
+    </script>
+</body>
+</html>
