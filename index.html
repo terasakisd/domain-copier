@@ -234,6 +234,7 @@
         <div class="header">
             <h1>ドメインリスト コピーツール</h1>
             <p>Excelファイルから Domain 列を抽出し、200行ずつコピーできます</p>
+            <p style="margin-top: 10px; font-size: 13px; opacity: 0.9;">コピー後、Ahrefsが自動で開きます。Ctrl+V でペーストしてください。</p>
         </div>
         
         <div class="content">
@@ -432,6 +433,8 @@
             
             navigator.clipboard.writeText(text).then(() => {
                 showCopyNotification();
+                // Ahrefsを別タブで開く
+                window.open('https://app.ahrefs.com/v2-batch-analysis', '_blank');
                 // コピー後、次のページに移動
                 if ((currentBatch + 1) * BATCH_SIZE < allDomains.length) {
                     setTimeout(() => {
@@ -449,6 +452,8 @@
                 document.execCommand('copy');
                 document.body.removeChild(textarea);
                 showCopyNotification();
+                // Ahrefsを別タブで開く
+                window.open('https://app.ahrefs.com/v2-batch-analysis', '_blank');
                 // コピー後、次のページに移動
                 if ((currentBatch + 1) * BATCH_SIZE < allDomains.length) {
                     setTimeout(() => {
