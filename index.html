@@ -335,67 +335,76 @@
             }
         });
         
-        function handleFile(file) {
-            const reader = new FileReader();
-            
-            reader.onload = (e) => {
-                try {
-                    const data = new Uint8Array(e.target.result);
-                    const workbook = XLSX.read(data, { type: 'array' });
-                    
-                    // Get first sheet
-                    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-                    const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
-                    
-                    // Find Domain column
-                    const headers = jsonData[0];
-                    let domainColIndex = -1;
-                    
-                    for (let i = 0; i < headers.length; i++) {
-                        if (headers[i] && headers[i].toString().toLowerCase().includes('domain')) {
-                            domainColIndex = i;
-                            break;
-                        }
-                    }
-                    
-                    if (domainColIndex === -1) {
-                        alert('Domain列が見つかりませんでした。\n利用可能な列: ' + headers.join(', '));
-                        return;
-                    }
-                    
-                    // Extract domains (skip header row)
-                    allDomains = [];
-                    for (let i = 1; i < jsonData.length; i++) {
-                        const domain = jsonData[i][domainColIndex];
-                        if (domain && domain.toString().trim() !== '') {
-                            allDomains.push(domain.toString().trim());
-                        }
-                    }
-                    
-                    if (allDomains.length === 0) {
-                        alert('ドメインが見つかりませんでした。');
-                        return;
-                    }
-                    
-                    // Update UI
-                    document.getElementById('fileName').textContent = file.name;
-                    document.getElementById('totalDomains').textContent = allDomains.length.toLocaleString();
-                    document.getElementById('totalBatches').textContent = Math.ceil(allDomains.length / BATCH_SIZE);
-                    
-                    infoBox.classList.add('show');
-                    batchControls.classList.add('show');
-                    domainPreview.classList.add('show');
-                    
-                    currentBatch = 0;
-                    displayBatch();
-                    
-                } catch (error) {
-                    alert('ファイルの読み込みに失敗しました: ' + error.message);
+function handleFile(file) {
+    const reader = new FileReader();
+    
+    reader.onload = (e) => {
+        try {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, { type: 'array' });
+            const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+            const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
+
+            if (!jsonData.length) {
+                alert('シートにデータがありません。');
+                return;
+            }
+
+            // ヘッダー行を特定
+            const headers = jsonData[0];
+            let domainColIndex = -1;
+
+            for (let i = 0; i < headers.length; i++) {
+                if (headers[i] && headers[i].toString().toLowerCase().includes('domain')) {
+                    domainColIndex = i;
+                    break;
                 }
-            };
+            }
+
+            if (domainColIndex === -1) {
+                alert('Domain列が見つかりませんでした。\n利用可能な列: ' + headers.join(', '));
+                return;
+            }
+
+            // --- 修正版抽出処理 ---
+            // domain列だけ取り出し、セル内の改行も分割
+            allDomains = [];
+
+            for (let i = 1; i < jsonData.length; i++) {
+                const cellValue = jsonData[i][domainColIndex];
+                if (cellValue && cellValue.toString().trim() !== '') {
+                    // セル内改行を含む場合、それも1行ずつに分ける
+                    const lines = cellValue.toString().split(/\r?\n/).map(v => v.trim()).filter(v => v);
+                    allDomains.push(...lines);
+                }
+            }
+            // ----------------------
+
+            if (allDomains.length === 0) {
+                alert('Domain列に有効なデータが見つかりませんでした。');
+                return;
+            }
+
+            // UI更新
+            document.getElementById('fileName').textContent = file.name;
+            document.getElementById('totalDomains').textContent = allDomains.length.toLocaleString();
+            document.getElementById('totalBatches').textContent = Math.ceil(allDomains.length / BATCH_SIZE);
             
-            reader.readAsArrayBuffer(file);
+            infoBox.classList.add('show');
+            batchControls.classList.add('show');
+            domainPreview.classList.add('show');
+            
+            currentBatch = 0;
+            displayBatch();
+            
+        } catch (error) {
+            alert('ファイルの読み込みに失敗しました: ' + error.message);
         }
+    };
+    
+    reader.readAsArrayBuffer(file);
+}
+
         
         function displayBatch() {
             const start = currentBatch * BATCH_SIZE;
