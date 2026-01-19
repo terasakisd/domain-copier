@@ -79,6 +79,63 @@
             display: none;
         }
         
+        .file-list {
+            background: #f9f9f9;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+            display: none;
+        }
+        
+        .file-list.show {
+            display: block;
+        }
+        
+        .file-list h3 {
+            font-size: 14px;
+            color: #333;
+            margin-bottom: 10px;
+        }
+        
+        .file-item {
+            background: white;
+            padding: 10px 15px;
+            margin-bottom: 8px;
+            border-radius: 6px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border: 1px solid #e0e0e0;
+        }
+        
+        .file-item:last-child {
+            margin-bottom: 0;
+        }
+        
+        .file-name {
+            font-size: 13px;
+            color: #333;
+            flex: 1;
+        }
+        
+        .file-count {
+            font-size: 12px;
+            color: #666;
+            margin-left: 10px;
+        }
+        
+        .remove-file {
+            background: #666;
+            color: white;
+            border: none;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+            margin-left: 10px;
+        }
+        
         .info-box {
             background: #fafafa;
             padding: 20px;
@@ -104,8 +161,12 @@
         }
         
         .info-label {
-            font-weight: 600;
+            font-weight: 666;
             color: #333;
+        }
+        
+        .info-value {
+            color: #666;
         }
         
         .batch-controls {
@@ -158,6 +219,22 @@
         .btn-secondary:disabled {
             opacity: 0.5;
             cursor: not-allowed;
+        }
+        
+        .btn-clear {
+            background: #666;
+            color: white;
+            width: 100%;
+            margin-bottom: 20px;
+            display: none;
+        }
+        
+        .btn-clear.show {
+            display: block;
+        }
+        
+        .btn-clear:hover {
+            background: #555;
         }
         
         .domain-preview {
@@ -233,7 +310,7 @@
     <div class="container">
         <div class="header">
             <h1>ドメインリスト コピーツール</h1>
-            <p>Excelファイルから Domain 列を抽出し、200行ずつコピーできます</p>
+            <p>複数のExcelファイルから Domain 列を抽出し、重複を削除して200行ずつコピーできます</p>
             <p style="margin-top: 10px; font-size: 13px; opacity: 0.9;">コピー後、Ahrefsが自動で開きます。Ctrl+V でペーストしてください。</p>
         </div>
         
@@ -247,23 +324,39 @@
                         <line x1="9" y1="15" x2="15" y2="15"></line>
                     </svg>
                 </div>
-                <h3>Excelファイルをドラッグ&ドロップ</h3>
-                <p>または クリックしてファイルを選択</p>
-                <input type="file" id="fileInput" accept=".xlsx,.xls">
+                <h2 style="margin-bottom: 10px; color: #333;">Excel ファイルを選択</h2>
+                <p style="color: #666; margin-bottom: 15px;">クリックまたはドラッグ&ドロップ</p>
+                <p style="color: #999; font-size: 13px;">複数ファイルを選択できます (.xlsx, .xls, .csv)</p>
             </div>
+            <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" multiple>
+            
+            <div class="file-list" id="fileList">
+                <h3>アップロード済みファイル:</h3>
+                <div id="fileItems"></div>
+            </div>
+            
+            <button class="btn-clear" id="clearBtn" onclick="clearAll()">すべてクリア</button>
             
             <div class="info-box" id="infoBox">
                 <div class="info-item">
-                    <span class="info-label">ファイル名:</span>
-                    <span id="fileName">-</span>
+                    <span class="info-label">総ファイル数:</span>
+                    <span id="totalFiles" class="info-value">-</span>
                 </div>
                 <div class="info-item">
-                    <span class="info-label">総ドメイン数:</span>
-                    <span id="totalDomains">-</span>
+                    <span class="info-label">抽出前の総ドメイン数:</span>
+                    <span id="totalDomainsBeforeDupe" class="info-value">-</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">重複削除後のドメイン数:</span>
+                    <span id="totalDomains" class="info-value">-</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">削除された重複数:</span>
+                    <span id="duplicateCount" class="info-value">-</span>
                 </div>
                 <div class="info-item">
                     <span class="info-label">総ページ数:</span>
-                    <span id="totalBatches">-</span>
+                    <span id="totalBatches" class="info-value">-</span>
                 </div>
             </div>
             
@@ -292,19 +385,24 @@
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; margin-right: 8px;">
             <polyline points="20 6 9 17 4 12"></polyline>
         </svg>
-        コピーしました！
+        コピーしました!
     </div>
 
     <script>
+        let uploadedFiles = [];
         let allDomains = [];
+        let uniqueDomains = [];
         let currentBatch = 0;
         const BATCH_SIZE = 200;
         
         const uploadArea = document.getElementById('uploadArea');
         const fileInput = document.getElementById('fileInput');
+        const fileList = document.getElementById('fileList');
+        const fileItems = document.getElementById('fileItems');
         const infoBox = document.getElementById('infoBox');
         const batchControls = document.getElementById('batchControls');
         const domainPreview = document.getElementById('domainPreview');
+        const clearBtn = document.getElementById('clearBtn');
         
         // Upload area click
         uploadArea.addEventListener('click', () => fileInput.click());
@@ -322,102 +420,173 @@
         uploadArea.addEventListener('drop', (e) => {
             e.preventDefault();
             uploadArea.classList.remove('dragover');
-            const files = e.dataTransfer.files;
-            if (files.length > 0) {
-                handleFile(files[0]);
-            }
+            const files = Array.from(e.dataTransfer.files);
+            handleFiles(files);
         });
         
         // File input change
         fileInput.addEventListener('change', (e) => {
-            if (e.target.files.length > 0) {
-                handleFile(e.target.files[0]);
-            }
+            const files = Array.from(e.target.files);
+            handleFiles(files);
+            fileInput.value = ''; // Reset input
         });
         
-function handleFile(file) {
-    const reader = new FileReader();
-    
-    reader.onload = (e) => {
-        try {
-            const data = new Uint8Array(e.target.result);
-            const workbook = XLSX.read(data, { type: 'array' });
-            const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-            const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
-
-            if (!jsonData.length) {
-                alert('シートにデータがありません。');
-                return;
-            }
-
-            // ヘッダー行を特定
-            const headers = jsonData[0];
-            let domainColIndex = -1;
-
-            for (let i = 0; i < headers.length; i++) {
-                if (headers[i] && headers[i].toString().toLowerCase().includes('domain')) {
-                    domainColIndex = i;
-                    break;
+        function handleFiles(files) {
+            files.forEach(file => {
+                // Check if file is already uploaded
+                if (!uploadedFiles.find(f => f.name === file.name)) {
+                    handleFile(file);
                 }
-            }
-
-            if (domainColIndex === -1) {
-                alert('Domain列が見つかりませんでした。\n利用可能な列: ' + headers.join(', '));
-                return;
-            }
-
-            // --- 修正版抽出処理 ---
-            // domain列だけ取り出し、セル内の改行も分割
-            allDomains = [];
-
-            for (let i = 1; i < jsonData.length; i++) {
-                const cellValue = jsonData[i][domainColIndex];
-                if (cellValue && cellValue.toString().trim() !== '') {
-                    // セル内改行を含む場合、それも1行ずつに分ける
-                    const lines = cellValue.toString().split(/\r?\n/).map(v => v.trim()).filter(v => v);
-                    allDomains.push(...lines);
-                }
-            }
-            // ----------------------
-
-            if (allDomains.length === 0) {
-                alert('Domain列に有効なデータが見つかりませんでした。');
-                return;
-            }
-
-            // UI更新
-            document.getElementById('fileName').textContent = file.name;
-            document.getElementById('totalDomains').textContent = allDomains.length.toLocaleString();
-            document.getElementById('totalBatches').textContent = Math.ceil(allDomains.length / BATCH_SIZE);
+            });
+        }
+        
+        function handleFile(file) {
+            const reader = new FileReader();
             
+            reader.onload = (e) => {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                    const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
+
+                    if (!jsonData.length) {
+                        alert(`${file.name}: シートにデータがありません。`);
+                        return;
+                    }
+
+                    // ヘッダー行を特定
+                    const headers = jsonData[0];
+                    let domainColIndex = -1;
+
+                    for (let i = 0; i < headers.length; i++) {
+                        if (headers[i] && headers[i].toString().toLowerCase().includes('domain')) {
+                            domainColIndex = i;
+                            break;
+                        }
+                    }
+
+                    if (domainColIndex === -1) {
+                        alert(`${file.name}: Domain列が見つかりませんでした。\n利用可能な列: ` + headers.join(', '));
+                        return;
+                    }
+
+                    // Domain列を抽出
+                    const fileDomains = [];
+
+                    for (let i = 1; i < jsonData.length; i++) {
+                        const cellValue = jsonData[i][domainColIndex];
+                        if (cellValue && cellValue.toString().trim() !== '') {
+                            // セル内改行も分割
+                            const lines = cellValue.toString().split(/\r?\n/).map(v => v.trim()).filter(v => v);
+                            fileDomains.push(...lines);
+                        }
+                    }
+
+                    if (fileDomains.length === 0) {
+                        alert(`${file.name}: Domain列に有効なデータが見つかりませんでした。`);
+                        return;
+                    }
+
+                    // ファイル情報を保存
+                    uploadedFiles.push({
+                        name: file.name,
+                        domains: fileDomains,
+                        count: fileDomains.length
+                    });
+
+                    // 全体を更新
+                    updateDisplay();
+                    
+                } catch (error) {
+                    alert(`${file.name}: ファイルの読み込みに失敗しました - ${error.message}`);
+                }
+            };
+            
+            reader.readAsArrayBuffer(file);
+        }
+        
+        function updateDisplay() {
+            // すべてのドメインを結合
+            allDomains = [];
+            uploadedFiles.forEach(file => {
+                allDomains.push(...file.domains);
+            });
+            
+            const totalBefore = allDomains.length;
+            
+            // 重複を削除
+            uniqueDomains = [...new Set(allDomains)];
+            
+            const duplicateCount = totalBefore - uniqueDomains.length;
+            
+            // ファイルリストを表示
+            fileItems.innerHTML = '';
+            uploadedFiles.forEach((file, index) => {
+                const fileItem = document.createElement('div');
+                fileItem.className = 'file-item';
+                fileItem.innerHTML = `
+                    <span class="file-name">${file.name}</span>
+                    <span class="file-count">${file.count.toLocaleString()} ドメイン</span>
+                    <button class="remove-file" onclick="removeFile(${index})">削除</button>
+                `;
+                fileItems.appendChild(fileItem);
+            });
+            
+            // UI更新
+            document.getElementById('totalFiles').textContent = uploadedFiles.length;
+            document.getElementById('totalDomainsBeforeDupe').textContent = totalBefore.toLocaleString();
+            document.getElementById('totalDomains').textContent = uniqueDomains.length.toLocaleString();
+            document.getElementById('duplicateCount').textContent = duplicateCount.toLocaleString();
+            document.getElementById('totalBatches').textContent = Math.ceil(uniqueDomains.length / BATCH_SIZE);
+            
+            fileList.classList.add('show');
             infoBox.classList.add('show');
             batchControls.classList.add('show');
             domainPreview.classList.add('show');
+            clearBtn.classList.add('show');
             
             currentBatch = 0;
             displayBatch();
-            
-        } catch (error) {
-            alert('ファイルの読み込みに失敗しました: ' + error.message);
         }
-    };
-    
-    reader.readAsArrayBuffer(file);
-}
-
+        
+        function removeFile(index) {
+            uploadedFiles.splice(index, 1);
+            
+            if (uploadedFiles.length === 0) {
+                clearAll();
+            } else {
+                updateDisplay();
+            }
+        }
+        
+        function clearAll() {
+            uploadedFiles = [];
+            allDomains = [];
+            uniqueDomains = [];
+            currentBatch = 0;
+            
+            fileList.classList.remove('show');
+            infoBox.classList.remove('show');
+            batchControls.classList.remove('show');
+            domainPreview.classList.remove('show');
+            clearBtn.classList.remove('show');
+            
+            fileItems.innerHTML = '';
+        }
         
         function displayBatch() {
             const start = currentBatch * BATCH_SIZE;
-            const end = Math.min(start + BATCH_SIZE, allDomains.length);
-            const batchDomains = allDomains.slice(start, end);
+            const end = Math.min(start + BATCH_SIZE, uniqueDomains.length);
+            const batchDomains = uniqueDomains.slice(start, end);
             
             document.getElementById('domainList').textContent = batchDomains.join('\n');
             document.getElementById('batchIndicator').textContent = 
-                `ページ ${currentBatch + 1} / ${Math.ceil(allDomains.length / BATCH_SIZE)} (${start + 1} - ${end} 件目)`;
+                `ページ ${currentBatch + 1} / ${Math.ceil(uniqueDomains.length / BATCH_SIZE)} (${start + 1} - ${end} 件目)`;
             
             // Update button states
             document.getElementById('prevBtn').disabled = currentBatch === 0;
-            document.getElementById('nextBtn').disabled = end >= allDomains.length;
+            document.getElementById('nextBtn').disabled = end >= uniqueDomains.length;
         }
         
         function previousBatch() {
@@ -428,7 +597,7 @@ function handleFile(file) {
         }
         
         function nextBatch() {
-            if ((currentBatch + 1) * BATCH_SIZE < allDomains.length) {
+            if ((currentBatch + 1) * BATCH_SIZE < uniqueDomains.length) {
                 currentBatch++;
                 displayBatch();
             }
@@ -436,8 +605,8 @@ function handleFile(file) {
         
         function copyCurrentBatch() {
             const start = currentBatch * BATCH_SIZE;
-            const end = Math.min(start + BATCH_SIZE, allDomains.length);
-            const batchDomains = allDomains.slice(start, end);
+            const end = Math.min(start + BATCH_SIZE, uniqueDomains.length);
+            const batchDomains = uniqueDomains.slice(start, end);
             const text = batchDomains.join('\n');
             
             navigator.clipboard.writeText(text).then(() => {
@@ -445,7 +614,7 @@ function handleFile(file) {
                 // Ahrefsを別タブで開く
                 window.open('https://app.ahrefs.com/v2-batch-analysis', '_blank');
                 // コピー後、次のページに移動
-                if ((currentBatch + 1) * BATCH_SIZE < allDomains.length) {
+                if ((currentBatch + 1) * BATCH_SIZE < uniqueDomains.length) {
                     setTimeout(() => {
                         nextBatch();
                     }, 300);
@@ -464,7 +633,7 @@ function handleFile(file) {
                 // Ahrefsを別タブで開く
                 window.open('https://app.ahrefs.com/v2-batch-analysis', '_blank');
                 // コピー後、次のページに移動
-                if ((currentBatch + 1) * BATCH_SIZE < allDomains.length) {
+                if ((currentBatch + 1) * BATCH_SIZE < uniqueDomains.length) {
                     setTimeout(() => {
                         nextBatch();
                     }, 300);
@@ -482,7 +651,7 @@ function handleFile(file) {
         
         // Keyboard shortcuts
         document.addEventListener('keydown', (e) => {
-            if (allDomains.length === 0) return;
+            if (uniqueDomains.length === 0) return;
             
             if (e.key === 'ArrowLeft' && !document.getElementById('prevBtn').disabled) {
                 previousBatch();
